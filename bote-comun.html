@@ -203,6 +203,7 @@
   .popup .pbar.red>span{background:var(--red)}
   .seg.who button.on.va{background:var(--emerald);border-color:var(--emerald)}
   .seg.who button.on.vb{background:var(--coral);border-color:var(--coral)}
+  #freqSeg button.on{background:var(--emerald);border-color:var(--emerald);color:#fff}
 
   /* ===== modo oscuro ===== */
   #themeSeg button.on{background:var(--emerald);border-color:var(--emerald);color:#fff}
@@ -399,9 +400,16 @@
     <label class="fld"><span class="ft">Importe (€)</span><input id="exAmount" type="number" inputmode="decimal" placeholder="0,00" min="0" step="0.01"></label>
     <label class="fld" id="dateField"><span class="ft">Fecha</span><input id="exDate" type="date"></label>
     <label class="fld hide" id="dayField"><span class="ft">Día del mes</span><input id="exDay" type="number" min="1" max="28" placeholder="1"></label>
+    <label class="fld hide" id="monthField"><span class="ft">Mes del año</span>
+      <select id="exMonth"></select>
+    </label>
   </div>
   <label class="fld"><span class="ft">Categoría</span><select id="exCat"></select></label>
-  <div class="toggle" id="fijoToggle"><span class="tlbl">🔁 Gasto fijo mensual</span><span class="sw"></span></div>
+  <div class="toggle" id="fijoToggle"><span class="tlbl">🔁 Gasto fijo recurrente</span><span class="sw"></span></div>
+  <div class="seg hide" id="freqSeg" style="margin:-6px 0 14px">
+    <button data-f="mensual" class="on">📅 Mensual</button>
+    <button data-f="anual">🗓️ Anual</button>
+  </div>
   <label class="fld"><span class="ft">¿Quién lo paga?</span></label>
   <div class="seg" id="exPayer" style="margin:-6px 0 18px">
     <button data-p="A" class="va"><span class="sd" style="color:var(--emerald)"></span><span id="segA">Yo</span></button>
@@ -478,7 +486,7 @@ const KEY='boteComun_v2', CODEKEY='boteComun_code', MEKEY='boteComun_me', DEVKEY
 const MONTHS_ES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 let state=load();
 let curMonth=monthKey(new Date()), curYear=new Date().getFullYear();
-let editingId=null, editingFixed=false, formPayer='A', formFijo=false, statMode='mes';
+let editingId=null, editingFixed=false, formPayer='A', formFijo=false, formFreq='mensual', statMode='mes';
 const now=()=>Date.now();
 let deviceId=localStorage.getItem(DEVKEY)||(localStorage.setItem(DEVKEY,'d'+Math.random().toString(36).slice(2,10)),localStorage.getItem(DEVKEY));
 let myPerson=localStorage.getItem(MEKEY)||null; // 'A' | 'B' | null
@@ -514,7 +522,7 @@ function migrate(s){
   if(!Array.isArray(s.config.customCats))s.config.customCats=[]; if(!Array.isArray(s.config.hiddenCats))s.config.hiddenCats=[];
   s.months=s.months||{};
   Object.values(s.months).forEach(m=>{ (m.expenses||[]).forEach(e=>{ if(!e.updatedAt)e.updatedAt=e.id||1; if(e.deleted===undefined)e.deleted=false; }); });
-  s.fixed.forEach(f=>{ if(!f.updatedAt)f.updatedAt=f.id||1; if(f.deleted===undefined)f.deleted=false; });
+  s.fixed.forEach(f=>{ if(!f.updatedAt)f.updatedAt=f.id||1; if(f.deleted===undefined)f.deleted=false; if(!f.freq)f.freq='mensual'; if(f.freq==='anual'&&!f.month)f.month=+((f.fromMonth||'0000-01').split('-')[1])||1; });
   return s;
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(state)); if(Sync.active)Sync.push();}
@@ -527,9 +535,10 @@ function esc(s){return(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':
 /* expenses (reales + fijos virtuales) de un mes */
 function expensesForMonth(mk){
   const real=((state.months[mk]||{}).expenses||[]).filter(e=>!e.deleted);
-  const fixed=(state.fixed||[]).filter(f=>!f.deleted && (f.fromMonth||'0000-00')<=mk).map(f=>({
+  const mkMonth=+mk.split('-')[1];
+  const fixed=(state.fixed||[]).filter(f=>!f.deleted && (f.fromMonth||'0000-00')<=mk && (f.freq!=='anual' || +f.month===mkMonth)).map(f=>({
     id:'fix_'+f.id, fixId:f.id, concept:f.concept, amount:f.amount, cat:f.cat, payer:f.payer,
-    date:mk+'-'+String(Math.min(28,Math.max(1,f.day||1))).padStart(2,'0'), fijo:true
+    date:mk+'-'+String(Math.min(28,Math.max(1,f.day||1))).padStart(2,'0'), fijo:true, freq:f.freq||'mensual'
   }));
   return {real,fixed,all:[...fixed,...real]};
 }
@@ -709,7 +718,21 @@ function fillCatSelect(extraId){const list=allCats().slice();
   document.getElementById('exCat').innerHTML=list.map(c=>`<option value="${c.id}">${c.emo}  ${c.name}</option>`).join('');}
 function setPayer(p){formPayer=p;document.querySelectorAll('#exPayer button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));}
 function setFijo(on){formFijo=on;document.getElementById('fijoToggle').classList.toggle('on',on);
-  document.getElementById('dateField').classList.toggle('hide',on);document.getElementById('dayField').classList.toggle('hide',!on);}
+  document.getElementById('dateField').classList.toggle('hide',on);
+  document.getElementById('freqSeg').classList.toggle('hide',!on);
+  applyFreqUI();}
+function applyFreqUI(){
+  const showDay=formFijo;
+  const showMonth=formFijo&&formFreq==='anual';
+  document.getElementById('dayField').classList.toggle('hide',!showDay);
+  document.getElementById('monthField').classList.toggle('hide',!showMonth);
+}
+function setFreq(f){formFreq=f==='anual'?'anual':'mensual';
+  document.querySelectorAll('#freqSeg button').forEach(b=>b.classList.toggle('on',b.dataset.f===formFreq));
+  applyFreqUI();}
+function fillMonthSelect(){const sel=document.getElementById('exMonth');if(sel.options.length)return;
+  const MES_LONG=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  sel.innerHTML=MES_LONG.map((n,i)=>`<option value="${i+1}">${n.charAt(0).toUpperCase()+n.slice(1)}</option>`).join('');}
 function openSheet(id,isFixed){
   editingId=id??null; editingFixed=!!isFixed;
   const c=calc(); document.getElementById('segA').textContent=c.a.name||'Yo';document.getElementById('segB').textContent=c.b.name||'Pareja';
@@ -717,8 +740,9 @@ function openSheet(id,isFixed){
     const f=state.fixed.find(x=>x.id===editingId);
     document.getElementById('sheetTitle').textContent='Editar gasto fijo';
     document.getElementById('exConcept').value=f.concept||'';document.getElementById('exAmount').value=f.amount||'';
-    document.getElementById('exDay').value=f.day||1;fillCatSelect(f.cat);document.getElementById('exCat').value=f.cat||'subs';
-    setPayer(f.payer||'bote');setFijo(true);document.getElementById('exDelete').style.display='block';
+    document.getElementById('exDay').value=f.day||1;fillMonthSelect();document.getElementById('exMonth').value=f.month||1;
+    fillCatSelect(f.cat);document.getElementById('exCat').value=f.cat||'subs';
+    setPayer(f.payer||'bote');setFreq(f.freq||'mensual');setFijo(true);document.getElementById('exDelete').style.display='block';
   }else if(editingId){
     const e=expensesForMonth(curMonth).real.find(x=>x.id===editingId);
     document.getElementById('sheetTitle').textContent='Editar gasto';
@@ -729,7 +753,8 @@ function openSheet(id,isFixed){
     document.getElementById('sheetTitle').textContent='Nuevo gasto';
     document.getElementById('exConcept').value='';document.getElementById('exAmount').value='';
     document.getElementById('exDate').value=todayInMonth();document.getElementById('exDay').value=1;
-    fillCatSelect();document.getElementById('exCat').value='comida';setPayer(myPerson||'A');setFijo(false);document.getElementById('exDelete').style.display='none';
+    fillMonthSelect();document.getElementById('exMonth').value=(new Date().getMonth()+1);
+    fillCatSelect();document.getElementById('exCat').value='comida';setPayer(myPerson||'A');setFreq('mensual');setFijo(false);document.getElementById('exDelete').style.display='none';
   }
   document.getElementById('sheetBg').classList.add('open');document.getElementById('sheet').classList.add('open');
 }
@@ -739,6 +764,7 @@ document.getElementById('fab').onclick=()=>openSheet();
 document.getElementById('exCancel').onclick=closeSheet;
 document.getElementById('sheetBg').onclick=closeSheet;
 document.getElementById('fijoToggle').onclick=()=>setFijo(!formFijo);
+document.querySelectorAll('#freqSeg button').forEach(b=>b.onclick=()=>setFreq(b.dataset.f));
 document.querySelectorAll('#exPayer button').forEach(b=>b.onclick=()=>setPayer(b.dataset.p));
 
 document.getElementById('exSave').onclick=()=>{
@@ -750,12 +776,13 @@ document.getElementById('exSave').onclick=()=>{
   const usedBefore=potUsedPct(curMonth);
   if(formFijo){
     const day=Math.min(28,Math.max(1,+document.getElementById('exDay').value||1));
+    const month=formFreq==='anual'?Math.min(12,Math.max(1,+document.getElementById('exMonth').value||1)):null;
     if(editingFixed&&editingId){const f=state.fixed.find(x=>x.id===editingId);
-      Object.assign(f,{concept,amount,cat,payer:formPayer,day,updatedAt:now()});
+      Object.assign(f,{concept,amount,cat,payer:formPayer,day,freq:formFreq,month:month||f.month||1,updatedAt:now()});
     }else{
       if(editingId&&!editingFixed)deleteExpense(editingId,false);
-      state.fixed.push({id:now(),concept,amount,cat,payer:formPayer,day,fromMonth:curMonth,updatedAt:now(),deleted:false});}
-    announce('fijo',(concept||catById(cat).name)+' · '+fmt(amount)+'/mes');
+      state.fixed.push({id:now(),concept,amount,cat,payer:formPayer,day,freq:formFreq,month:month||1,fromMonth:curMonth,updatedAt:now(),deleted:false});}
+    announce('fijo',(concept||catById(cat).name)+' · '+fmt(amount)+(formFreq==='anual'?'/año':'/mes'));
   }else{
     const date=document.getElementById('exDate').value||todayInMonth();
     const mk=monthKey(new Date(date+'T00:00:00'));
@@ -860,11 +887,17 @@ function renderFixed(){
   const card=document.getElementById('fixedCard');
   const list=(state.fixed||[]).filter(f=>!f.deleted);
   const an=state.config.a.name||'Yo',bn=state.config.b.name||'Pareja';
-  if(!list.length){card.innerHTML='<div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:8px 0">Sin gastos fijos. Añade alquiler, internet, suscripciones…</div>';return;}
-  const total=list.reduce((s,f)=>s+(+f.amount||0),0);
+  const MES_LONG=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  if(!list.length){card.innerHTML='<div style="color:var(--ink-soft);font-size:13px;text-align:center;padding:8px 0">Sin gastos fijos. Añade alquiler, internet, suscripciones, IBI…</div>';return;}
+  const totalMes=list.filter(f=>f.freq!=='anual').reduce((s,f)=>s+(+f.amount||0),0);
+  const totalAnio=list.filter(f=>f.freq==='anual').reduce((s,f)=>s+(+f.amount||0),0);
   card.innerHTML=list.map(f=>{const c=catById(f.cat);const who=f.payer==='A'?an:f.payer==='B'?bn:'Bote';
-    return`<div class="fitem" data-fix="${f.id}"><div class="emo">${c.emo}</div><div class="fc">${esc(f.concept||c.name)}<div style="font-size:11px;color:var(--ink-soft);font-weight:500">día ${f.day||1} · ${who}</div></div><div class="fa">${fmt(+f.amount||0)}</div></div>`;
-  }).join('')+`<div class="total-line"><span class="tl">Total fijos / mes</span><span class="tv">${fmt(total)}</span></div>`;
+    const periodo=f.freq==='anual'?`anual · ${MES_LONG[(f.month||1)-1]} día ${f.day||1}`:`día ${f.day||1}`;
+    const suf=f.freq==='anual'?' <span style="font-size:11px;color:var(--ink-soft);font-weight:500">/año</span>':'';
+    return`<div class="fitem" data-fix="${f.id}"><div class="emo">${c.emo}</div><div class="fc">${esc(f.concept||c.name)}<div style="font-size:11px;color:var(--ink-soft);font-weight:500">${periodo} · ${who}</div></div><div class="fa">${fmt(+f.amount||0)}${suf}</div></div>`;
+  }).join('')
+  +(totalMes>0?`<div class="total-line"><span class="tl">Total fijos / mes</span><span class="tv">${fmt(totalMes)}</span></div>`:'')
+  +(totalAnio>0?`<div class="total-line"><span class="tl">Total fijos / año</span><span class="tv">${fmt(totalAnio)}</span></div>`:'');
   card.querySelectorAll('.fitem').forEach(it=>it.onclick=()=>openSheet(+it.dataset.fix,true));
 }
 document.getElementById('addFixed').onclick=()=>{openSheet(null,false);setFijo(true);};
