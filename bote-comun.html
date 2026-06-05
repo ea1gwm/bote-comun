@@ -102,6 +102,8 @@
   .gitem .gmid{flex:1;min-width:0}
   .gitem .gc{font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gitem .gm{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;margin-top:2px}
+  .gitem .gn{font-size:11.5px;color:var(--ink-soft);margin-top:3px;line-height:1.35;white-space:pre-wrap;word-break:break-word;font-style:italic;opacity:.9}
+  .fitem .fn{font-size:11px;color:var(--ink-soft);font-weight:400;font-style:italic;margin-top:2px;white-space:pre-wrap;word-break:break-word}
   .gitem .gamt{font-family:var(--serif);font-weight:600;font-size:17px;white-space:nowrap}
   .dayhdr{font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:capitalize;padding:14px 4px 4px;letter-spacing:.3px}
 
@@ -396,6 +398,7 @@
   <div class="grab"></div>
   <h2 id="sheetTitle">Nuevo gasto</h2>
   <label class="fld"><span class="ft">Concepto</span><input id="exConcept" type="text" placeholder="Ej. Compra Mercadona" maxlength="40"></label>
+  <label class="fld"><span class="ft">Nota (opcional)</span><textarea id="exNote" placeholder="Ej. Matrícula 1234ABC · Vence 2027" maxlength="200" rows="2" style="resize:none;font-family:var(--sans);font-size:14px;color:var(--ink);background:var(--surface2);border:1.5px solid var(--line);border-radius:13px;padding:11px 14px;outline:none;width:100%;line-height:1.4"></textarea></label>
   <div class="row2">
     <label class="fld"><span class="ft">Importe (€)</span><input id="exAmount" type="number" inputmode="decimal" placeholder="0,00" min="0" step="0.01"></label>
     <label class="fld" id="dateField"><span class="ft">Fecha</span><input id="exDate" type="date"></label>
@@ -622,7 +625,8 @@ function renderGastos(c,an,bn){
   if(fixed.length){
     html+=`<div class="dayhdr">📌 Gastos fijos</div>`;
     fixed.forEach(e=>{const cat=catById(e.cat);
-      html+=`<div class="gitem" data-fix="${e.fixId}"><div class="emo">${cat.emo}<span class="fx">🔁</span></div><div class="gmid"><div class="gc">${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div></div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;});
+      const fNote=(state.fixed.find(x=>x.id===e.fixId)||{}).note;
+      html+=`<div class="gitem" data-fix="${e.fixId}"><div class="emo">${cat.emo}<span class="fx">🔁</span></div><div class="gmid"><div class="gc">${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div>${fNote?`<div class="gn">${esc(fNote)}</div>`:''}</div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;});
   }
   const sorted=[...real].sort((x,y)=>(y.date||'').localeCompare(x.date||'')||(y.id-x.id));
   let lastDay='';
@@ -630,7 +634,7 @@ function renderGastos(c,an,bn){
     if(e.date!==lastDay){lastDay=e.date;const d=e.date?new Date(e.date+'T00:00:00'):null;
       html+=`<div class="dayhdr">${d?d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}):'Sin fecha'}</div>`;}
     const cat=catById(e.cat);
-    html+=`<div class="gitem" data-id="${e.id}"><div class="emo">${cat.emo}</div><div class="gmid"><div class="gc">${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div></div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;
+    html+=`<div class="gitem" data-id="${e.id}"><div class="emo">${cat.emo}</div><div class="gmid"><div class="gc">${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div>${e.note?`<div class="gn">${esc(e.note)}</div>`:''}</div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;
   });
   wrap.innerHTML=`<div class="card glist">${html}</div>`;
   wrap.querySelectorAll('.gitem[data-id]').forEach(it=>it.onclick=()=>openSheet(+it.dataset.id,false));
@@ -740,6 +744,7 @@ function openSheet(id,isFixed){
     const f=state.fixed.find(x=>x.id===editingId);
     document.getElementById('sheetTitle').textContent='Editar gasto fijo';
     document.getElementById('exConcept').value=f.concept||'';document.getElementById('exAmount').value=f.amount||'';
+    document.getElementById('exNote').value=f.note||'';
     document.getElementById('exDay').value=f.day||1;fillMonthSelect();document.getElementById('exMonth').value=f.month||1;
     fillCatSelect(f.cat);document.getElementById('exCat').value=f.cat||'subs';
     setPayer(f.payer||'bote');setFreq(f.freq||'mensual');setFijo(true);document.getElementById('exDelete').style.display='block';
@@ -747,11 +752,13 @@ function openSheet(id,isFixed){
     const e=expensesForMonth(curMonth).real.find(x=>x.id===editingId);
     document.getElementById('sheetTitle').textContent='Editar gasto';
     document.getElementById('exConcept').value=e.concept||'';document.getElementById('exAmount').value=e.amount||'';
+    document.getElementById('exNote').value=e.note||'';
     document.getElementById('exDate').value=e.date||'';fillCatSelect(e.cat);document.getElementById('exCat').value=e.cat||'otros';
     setPayer(e.payer||'A');setFijo(false);document.getElementById('exDelete').style.display='block';
   }else{
     document.getElementById('sheetTitle').textContent='Nuevo gasto';
     document.getElementById('exConcept').value='';document.getElementById('exAmount').value='';
+    document.getElementById('exNote').value='';
     document.getElementById('exDate').value=todayInMonth();document.getElementById('exDay').value=1;
     fillMonthSelect();document.getElementById('exMonth').value=(new Date().getMonth()+1);
     fillCatSelect();document.getElementById('exCat').value='comida';setPayer(myPerson||'A');setFreq('mensual');setFijo(false);document.getElementById('exDelete').style.display='none';
@@ -771,6 +778,7 @@ document.getElementById('exSave').onclick=()=>{
   const amount=parseFloat((document.getElementById('exAmount').value||'').replace(',','.'));
   if(!(amount>0)){document.getElementById('exAmount').focus();return;}
   const concept=document.getElementById('exConcept').value.trim();
+  const note=document.getElementById('exNote').value.trim();
   const cat=document.getElementById('exCat').value;
   const isNew=!editingId;
   const usedBefore=potUsedPct(curMonth);
@@ -778,10 +786,10 @@ document.getElementById('exSave').onclick=()=>{
     const day=Math.min(28,Math.max(1,+document.getElementById('exDay').value||1));
     const month=formFreq==='anual'?Math.min(12,Math.max(1,+document.getElementById('exMonth').value||1)):null;
     if(editingFixed&&editingId){const f=state.fixed.find(x=>x.id===editingId);
-      Object.assign(f,{concept,amount,cat,payer:formPayer,day,freq:formFreq,month:month||f.month||1,updatedAt:now()});
+      Object.assign(f,{concept,note,amount,cat,payer:formPayer,day,freq:formFreq,month:month||f.month||1,updatedAt:now()});
     }else{
       if(editingId&&!editingFixed)deleteExpense(editingId,false);
-      state.fixed.push({id:now(),concept,amount,cat,payer:formPayer,day,freq:formFreq,month:month||1,fromMonth:curMonth,updatedAt:now(),deleted:false});}
+      state.fixed.push({id:now(),concept,note,amount,cat,payer:formPayer,day,freq:formFreq,month:month||1,fromMonth:curMonth,updatedAt:now(),deleted:false});}
     announce('fijo',(concept||catById(cat).name)+' · '+fmt(amount)+(formFreq==='anual'?'/año':'/mes'));
   }else{
     const date=document.getElementById('exDate').value||todayInMonth();
@@ -790,7 +798,7 @@ document.getElementById('exSave').onclick=()=>{
     if(editingId&&!editingFixed)deleteExpense(editingId,false);
     if(!state.months[mk])state.months[mk]={expenses:[]};
     const newId=(editingId&&!editingFixed)?editingId:now();
-    state.months[mk].expenses.push({id:newId,concept,amount,date,cat,payer:formPayer,updatedAt:now(),deleted:false});
+    state.months[mk].expenses.push({id:newId,concept,note,amount,date,cat,payer:formPayer,updatedAt:now(),deleted:false});
     curMonth=mk;
     announce('gasto',(concept||catById(cat).name)+' · '+fmt(amount));
   }
@@ -894,7 +902,8 @@ function renderFixed(){
   card.innerHTML=list.map(f=>{const c=catById(f.cat);const who=f.payer==='A'?an:f.payer==='B'?bn:'Bote';
     const periodo=f.freq==='anual'?`anual · ${MES_LONG[(f.month||1)-1]} día ${f.day||1}`:`día ${f.day||1}`;
     const suf=f.freq==='anual'?' <span style="font-size:11px;color:var(--ink-soft);font-weight:500">/año</span>':'';
-    return`<div class="fitem" data-fix="${f.id}"><div class="emo">${c.emo}</div><div class="fc">${esc(f.concept||c.name)}<div style="font-size:11px;color:var(--ink-soft);font-weight:500">${periodo} · ${who}</div></div><div class="fa">${fmt(+f.amount||0)}${suf}</div></div>`;
+    const noteHtml=f.note?`<div class="fn">${esc(f.note)}</div>`:'';
+    return`<div class="fitem" data-fix="${f.id}"><div class="emo">${c.emo}</div><div class="fc">${esc(f.concept||c.name)}<div style="font-size:11px;color:var(--ink-soft);font-weight:500">${periodo} · ${who}</div>${noteHtml}</div><div class="fa">${fmt(+f.amount||0)}${suf}</div></div>`;
   }).join('')
   +(totalMes>0?`<div class="total-line"><span class="tl">Total fijos / mes</span><span class="tv">${fmt(totalMes)}</span></div>`:'')
   +(totalAnio>0?`<div class="total-line"><span class="tl">Total fijos / año</span><span class="tv">${fmt(totalAnio)}</span></div>`:'');
