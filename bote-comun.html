@@ -104,6 +104,8 @@
   .gitem .gm{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;margin-top:2px}
   .gitem .gn{font-size:11.5px;color:var(--ink-soft);margin-top:3px;line-height:1.35;white-space:pre-wrap;word-break:break-word;font-style:italic;opacity:.9}
   .fitem .fn{font-size:11px;color:var(--ink-soft);font-weight:400;font-style:italic;margin-top:2px;white-space:pre-wrap;word-break:break-word}
+  .by{display:inline-grid;place-items:center;width:15px;height:15px;border-radius:50%;font-size:9px;font-weight:700;color:#fff;margin-right:6px;vertical-align:1px}
+  .by.a{background:var(--emerald)} .by.b{background:var(--coral)}
   .gitem .gamt{font-family:var(--serif);font-weight:600;font-size:17px;white-space:nowrap}
   .dayhdr{font-size:12px;font-weight:700;color:var(--ink-soft);text-transform:capitalize;padding:14px 4px 4px;letter-spacing:.3px}
 
@@ -534,6 +536,10 @@ function fmt(n){const v=Math.round((n+Number.EPSILON)*100)/100;return v.toLocale
 function fmtShort(n){if(Math.abs(n)>=1000)return Math.round(n/100)/10+'k';return Math.round(n)+'';}
 function fmtMonth(key){const[y,m]=key.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString('es-ES',{month:'long',year:'numeric'});}
 function esc(s){return(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function byBadge(p){if(p!=='A'&&p!=='B')return '';
+  const n=p==='A'?(state.config.a.name||'A'):(state.config.b.name||'B');
+  const ini=esc((n[0]||p).toUpperCase());
+  return `<span class="by ${p==='A'?'a':'b'}" title="Anotado por ${esc(n)}">${ini}</span>`;}
 
 /* expenses (reales + fijos virtuales) de un mes */
 function expensesForMonth(mk){
@@ -625,8 +631,9 @@ function renderGastos(c,an,bn){
   if(fixed.length){
     html+=`<div class="dayhdr">📌 Gastos fijos</div>`;
     fixed.forEach(e=>{const cat=catById(e.cat);
-      const fNote=(state.fixed.find(x=>x.id===e.fixId)||{}).note;
-      html+=`<div class="gitem" data-fix="${e.fixId}"><div class="emo">${cat.emo}<span class="fx">🔁</span></div><div class="gmid"><div class="gc">${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div>${fNote?`<div class="gn">${esc(fNote)}</div>`:''}</div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;});
+      const fOrig=state.fixed.find(x=>x.id===e.fixId)||{};
+      const fNote=fOrig.note;
+      html+=`<div class="gitem" data-fix="${e.fixId}"><div class="emo">${cat.emo}<span class="fx">🔁</span></div><div class="gmid"><div class="gc">${byBadge(fOrig.createdBy)}${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div>${fNote?`<div class="gn">${esc(fNote)}</div>`:''}</div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;});
   }
   const sorted=[...real].sort((x,y)=>(y.date||'').localeCompare(x.date||'')||(y.id-x.id));
   let lastDay='';
@@ -634,7 +641,7 @@ function renderGastos(c,an,bn){
     if(e.date!==lastDay){lastDay=e.date;const d=e.date?new Date(e.date+'T00:00:00'):null;
       html+=`<div class="dayhdr">${d?d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'}):'Sin fecha'}</div>`;}
     const cat=catById(e.cat);
-    html+=`<div class="gitem" data-id="${e.id}"><div class="emo">${cat.emo}</div><div class="gmid"><div class="gc">${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div>${e.note?`<div class="gn">${esc(e.note)}</div>`:''}</div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;
+    html+=`<div class="gitem" data-id="${e.id}"><div class="emo">${cat.emo}</div><div class="gmid"><div class="gc">${byBadge(e.createdBy)}${esc(e.concept||cat.name)}</div><div class="gm">${whoHtml(e)}</div>${e.note?`<div class="gn">${esc(e.note)}</div>`:''}</div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;
   });
   wrap.innerHTML=`<div class="card glist">${html}</div>`;
   wrap.querySelectorAll('.gitem[data-id]').forEach(it=>it.onclick=()=>openSheet(+it.dataset.id,false));
@@ -786,19 +793,24 @@ document.getElementById('exSave').onclick=()=>{
     const day=Math.min(28,Math.max(1,+document.getElementById('exDay').value||1));
     const month=formFreq==='anual'?Math.min(12,Math.max(1,+document.getElementById('exMonth').value||1)):null;
     if(editingFixed&&editingId){const f=state.fixed.find(x=>x.id===editingId);
-      Object.assign(f,{concept,note,amount,cat,payer:formPayer,day,freq:formFreq,month:month||f.month||1,updatedAt:now()});
+      Object.assign(f,{concept,note,amount,cat,payer:formPayer,day,freq:formFreq,month:month||f.month||1,updatedAt:now(),updatedBy:myPerson||f.updatedBy||null});
     }else{
       if(editingId&&!editingFixed)deleteExpense(editingId,false);
-      state.fixed.push({id:now(),concept,note,amount,cat,payer:formPayer,day,freq:formFreq,month:month||1,fromMonth:curMonth,updatedAt:now(),deleted:false});}
+      state.fixed.push({id:now(),concept,note,amount,cat,payer:formPayer,day,freq:formFreq,month:month||1,fromMonth:curMonth,updatedAt:now(),deleted:false,createdBy:myPerson||null,updatedBy:myPerson||null});}
     announce('fijo',(concept||catById(cat).name)+' · '+fmt(amount)+(formFreq==='anual'?'/año':'/mes'));
   }else{
     const date=document.getElementById('exDate').value||todayInMonth();
     const mk=monthKey(new Date(date+'T00:00:00'));
+    // preservar autor original si es una edición de gasto existente
+    let createdBy=myPerson||null;
+    if(editingId&&!editingFixed){
+      for(const k in state.months){const prev=(state.months[k].expenses||[]).find(x=>x.id===editingId);if(prev){createdBy=prev.createdBy||createdBy;break;}}
+    }
     if(editingFixed&&editingId)deleteFixed(editingId);
     if(editingId&&!editingFixed)deleteExpense(editingId,false);
     if(!state.months[mk])state.months[mk]={expenses:[]};
     const newId=(editingId&&!editingFixed)?editingId:now();
-    state.months[mk].expenses.push({id:newId,concept,note,amount,date,cat,payer:formPayer,updatedAt:now(),deleted:false});
+    state.months[mk].expenses.push({id:newId,concept,note,amount,date,cat,payer:formPayer,updatedAt:now(),deleted:false,createdBy,updatedBy:myPerson||null});
     curMonth=mk;
     announce('gasto',(concept||catById(cat).name)+' · '+fmt(amount));
   }
@@ -903,7 +915,7 @@ function renderFixed(){
     const periodo=f.freq==='anual'?`anual · ${MES_LONG[(f.month||1)-1]} día ${f.day||1}`:`día ${f.day||1}`;
     const suf=f.freq==='anual'?' <span style="font-size:11px;color:var(--ink-soft);font-weight:500">/año</span>':'';
     const noteHtml=f.note?`<div class="fn">${esc(f.note)}</div>`:'';
-    return`<div class="fitem" data-fix="${f.id}"><div class="emo">${c.emo}</div><div class="fc">${esc(f.concept||c.name)}<div style="font-size:11px;color:var(--ink-soft);font-weight:500">${periodo} · ${who}</div>${noteHtml}</div><div class="fa">${fmt(+f.amount||0)}${suf}</div></div>`;
+    return`<div class="fitem" data-fix="${f.id}"><div class="emo">${c.emo}</div><div class="fc">${byBadge(f.createdBy)}${esc(f.concept||c.name)}<div style="font-size:11px;color:var(--ink-soft);font-weight:500">${periodo} · ${who}</div>${noteHtml}</div><div class="fa">${fmt(+f.amount||0)}${suf}</div></div>`;
   }).join('')
   +(totalMes>0?`<div class="total-line"><span class="tl">Total fijos / mes</span><span class="tv">${fmt(totalMes)}</span></div>`:'')
   +(totalAnio>0?`<div class="total-line"><span class="tl">Total fijos / año</span><span class="tv">${fmt(totalAnio)}</span></div>`:'');
