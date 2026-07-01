@@ -258,6 +258,8 @@
       </div>
       <div class="section-t">Liquidación del mes</div>
       <div class="card settle" id="settleCard"><div class="res">Configura los sueldos para empezar</div></div>
+      <div class="section-t">Nota del mes <span class="add" id="editMonthNote">✎ Editar</span></div>
+      <div class="card" id="monthNoteCard"></div>
       <div id="catWrap"><div class="section-t">Gastos por categoría</div><div class="card" id="catCard"></div></div>
     </section>
 
@@ -460,6 +462,20 @@
   <button class="btn btn-ghost" id="catCancel" style="margin-top:2px">Cancelar</button>
 </div>
 
+<!-- HOJA: nota del mes -->
+<div class="sheet-bg" id="mnBg"></div>
+<div class="sheet" id="mnSheet">
+  <div class="grab"></div>
+  <h2>Nota de <span id="mnMonth">este mes</span></h2>
+  <div class="note" style="margin-bottom:14px">Apunta cualquier detalle del mes (visita, imprevisto, ahorro extra…). Se guarda junto con los gastos y la ve tu pareja.</div>
+  <label class="fld"><span class="ft">Nota</span>
+    <textarea id="mnText" placeholder="Ej. Vino mi madre a comer varias veces · Vacaciones agosto" maxlength="500" rows="5" style="resize:none;font-family:var(--sans);font-size:15px;color:var(--ink);background:var(--surface2);border:1.5px solid var(--line);border-radius:13px;padding:12px 14px;outline:none;width:100%;line-height:1.45"></textarea>
+  </label>
+  <button class="btn btn-primary" id="mnSave">Guardar</button>
+  <button class="btn btn-danger" id="mnDelete" style="margin-top:6px">Eliminar nota</button>
+  <button class="btn btn-ghost" id="mnCancel" style="margin-top:2px">Cancelar</button>
+</div>
+
 <script>
 /* ============================================================
    CONFIGURA AQUÍ TU PROYECTO FIREBASE (para sincronizar)
@@ -596,7 +612,7 @@ function render(){
   const tag=c.custom?' · ✎ este mes':'';
   document.getElementById('aPct').textContent=c.inc.aPct?`${c.inc.aPct}% de ${fmt(c.inc.aSalary)}${tag}`:'toca para fijar';
   document.getElementById('bPct').textContent=c.inc.bPct?`${c.inc.bPct}% de ${fmt(c.inc.bSalary)}${tag}`:'toca para fijar';
-  renderSettle(c,an,bn); renderCats(c); renderGastos(c,an,bn); renderStats();
+  renderSettle(c,an,bn); renderMonthNote(); renderCats(c); renderGastos(c,an,bn); renderStats();
 }
 function renderSettle(c,an,bn){
   const el=document.getElementById('settleCard');
@@ -887,6 +903,42 @@ document.getElementById('incClear').onclick=()=>{
   save();closeIncome();render();
 };
 
+/* ===== NOTA DEL MES ===== */
+function renderMonthNote(){
+  const card=document.getElementById('monthNoteCard');
+  const n=(state.months[curMonth]||{}).note;
+  if(!n||!n.text){card.innerHTML='<div style="color:var(--ink-soft);font-size:13.5px;text-align:center;padding:6px 4px;cursor:pointer" id="mnEmpty">✎ Toca aquí para apuntar algo del mes…</div>';
+    card.querySelector('#mnEmpty').onclick=openMonthNote; return;}
+  const who=n.by?`<div style="margin-top:8px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)">${byBadge(n.by)}<span>Anotado por <b>${esc(n.by==='A'?(state.config.a.name||'A'):(state.config.b.name||'B'))}</b>${n.updatedAt?' · '+new Date(n.updatedAt).toLocaleDateString('es-ES',{day:'numeric',month:'short'}):''}</span></div>`:'';
+  card.innerHTML=`<div style="font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;cursor:pointer" id="mnBody">${esc(n.text)}</div>${who}`;
+  card.querySelector('#mnBody').onclick=openMonthNote;
+}
+function openMonthNote(){
+  const n=(state.months[curMonth]||{}).note||{};
+  document.getElementById('mnMonth').textContent=fmtMonth(curMonth);
+  document.getElementById('mnText').value=n.text||'';
+  document.getElementById('mnDelete').style.display=n.text?'block':'none';
+  document.getElementById('mnBg').classList.add('open');document.getElementById('mnSheet').classList.add('open');
+}
+function closeMonthNote(){document.getElementById('mnBg').classList.remove('open');document.getElementById('mnSheet').classList.remove('open');}
+document.getElementById('editMonthNote').onclick=openMonthNote;
+document.getElementById('mnCancel').onclick=closeMonthNote;
+document.getElementById('mnBg').onclick=closeMonthNote;
+document.getElementById('mnSave').onclick=()=>{
+  const txt=document.getElementById('mnText').value.trim();
+  if(!state.months[curMonth])state.months[curMonth]={expenses:[]};
+  if(!txt){delete state.months[curMonth].note;}
+  else{state.months[curMonth].note={text:txt,by:myPerson||null,updatedAt:now()};}
+  announce('cambio',(txt?'Actualizó':'Borró')+' la nota de '+fmtMonth(curMonth));
+  save();closeMonthNote();render();
+};
+document.getElementById('mnDelete').onclick=()=>{
+  if(!confirm('¿Borrar la nota del mes?'))return;
+  if(state.months[curMonth]){state.months[curMonth].note={text:'',by:null,updatedAt:now()};}
+  announce('cambio','Borró la nota de '+fmtMonth(curMonth));
+  save();closeMonthNote();render();
+};
+
 /* ===== AJUSTES: config ===== */
 function fillCfg(){const a=state.config.a,b=state.config.b;
   cfgAName.value=a.name||'';cfgASalary.value=a.salary||'';cfgAPct.value=a.pct||'';
@@ -1039,6 +1091,9 @@ const Sync={
       const li=lm.income, ri=rm.income;
       let inc; if(li&&ri)inc=((ri.updatedAt||0)>=(li.updatedAt||0))?ri:li; else inc=li||ri;
       if(inc)months[k].income=inc;
+      const ln=lm.note, rn=rm.note;
+      let nt; if(ln&&rn)nt=((rn.updatedAt||0)>=(ln.updatedAt||0))?rn:ln; else nt=ln||rn;
+      if(nt&&nt.text)months[k].note=nt; else if(nt)months[k].note=nt; // conservar tombstone (text vacío)
     });
     const lat=(local.meta&&local.meta.lastChange&&local.meta.lastChange.at)||0;
     const rat=(remote.meta&&remote.meta.lastChange&&remote.meta.lastChange.at)||0;
