@@ -275,6 +275,16 @@
       <div id="gListWrap"></div>
     </section>
 
+    <!-- APARTE (gastos fuera del bote, reparto proporcional) -->
+    <section class="view" id="v-extra">
+      <div class="card" style="padding:14px 16px;margin-bottom:12px">
+        <div style="font-size:12px;color:var(--ink-soft);line-height:1.55">🍽️ Gastos <b>fuera del bote común</b>. Se reparten en la misma proporción que aportáis al bote pero <b>no</b> descuentan de él. Útil para cenas, planes de ocio…</div>
+      </div>
+      <div class="card settle" id="extraSettle"><div class="res">Sin gastos aparte este mes 🌱</div></div>
+      <div class="section-t" style="margin-top:16px">Gastos aparte del mes <span class="add" id="addExtra">+ Añadir</span></div>
+      <div id="extraListWrap"></div>
+    </section>
+
     <!-- ESTADÍSTICAS -->
     <section class="view" id="v-stats">
       <div class="toggleyr"><button data-s="mes" class="on" id="sb-mes">Mes</button><button data-s="anio" id="sb-anio">Año</button></div>
@@ -383,6 +393,7 @@
   <nav class="tabs">
     <button data-v="resumen" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>Resumen</button>
     <button data-v="gastos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Gastos</button>
+    <button data-v="extra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h14"/><path d="M6 4v6a6 6 0 0 0 12 0V4"/><path d="M12 16v4"/><path d="M8 20h8"/></svg>Aparte</button>
     <button data-v="stats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="6"/><rect x="12" y="7" width="3" height="10"/><rect x="17" y="13" width="3" height="4"/></svg>Stats</button>
     <button data-v="ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Ajustes</button>
   </nav>
@@ -507,7 +518,7 @@ const KEY='boteComun_v2', CODEKEY='boteComun_code', MEKEY='boteComun_me', DEVKEY
 const MONTHS_ES=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 let state=load();
 let curMonth=monthKey(new Date()), curYear=new Date().getFullYear();
-let editingId=null, editingFixed=false, formPayer='A', formFijo=false, formFreq='mensual', statMode='mes';
+let editingId=null, editingFixed=false, editingExtra=false, formPayer='A', formFijo=false, formFreq='mensual', formExtra=false, statMode='mes';
 const now=()=>Date.now();
 let deviceId=localStorage.getItem(DEVKEY)||(localStorage.setItem(DEVKEY,'d'+Math.random().toString(36).slice(2,10)),localStorage.getItem(DEVKEY));
 let myPerson=localStorage.getItem(MEKEY)||null; // 'A' | 'B' | null
@@ -535,12 +546,13 @@ function notify(emoji,title,body){
   toast(emoji,`<b>${esc(title)}</b><br>${esc(body)}`);
 }
 
-function blankState(){return{config:{a:{name:'Yo',salary:0,pct:0},b:{name:'Pareja',salary:0,pct:0},customCats:[],hiddenCats:[],updatedAt:0},fixed:[],months:{}};}
+function blankState(){return{config:{a:{name:'Yo',salary:0,pct:0},b:{name:'Pareja',salary:0,pct:0},customCats:[],hiddenCats:[],updatedAt:0},fixed:[],extras:[],months:{}};}
 function load(){try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.config)return migrate(r);}catch(e){}return blankState();}
 function migrate(s){
   s.config=s.config||{}; if(!s.config.a)s.config.a={name:'Yo',salary:0,pct:0}; if(!s.config.b)s.config.b={name:'Pareja',salary:0,pct:0};
-  if(!s.config.updatedAt)s.config.updatedAt=0; if(!Array.isArray(s.fixed))s.fixed=[];
+  if(!s.config.updatedAt)s.config.updatedAt=0; if(!Array.isArray(s.fixed))s.fixed=[]; if(!Array.isArray(s.extras))s.extras=[];
   if(!Array.isArray(s.config.customCats))s.config.customCats=[]; if(!Array.isArray(s.config.hiddenCats))s.config.hiddenCats=[];
+  s.extras.forEach(e=>{if(!e.updatedAt)e.updatedAt=e.id||1;if(e.deleted===undefined)e.deleted=false;});
   s.months=s.months||{};
   Object.values(s.months).forEach(m=>{ (m.expenses||[]).forEach(e=>{ if(!e.updatedAt)e.updatedAt=e.id||1; if(e.deleted===undefined)e.deleted=false; }); });
   s.fixed.forEach(f=>{ if(!f.updatedAt)f.updatedAt=f.id||1; if(f.deleted===undefined)f.deleted=false; if(!f.freq)f.freq='mensual'; if(f.freq==='anual'&&!f.month)f.month=+((f.fromMonth||'0000-01').split('-')[1])||1; });
@@ -612,7 +624,7 @@ function render(){
   const tag=c.custom?' · ✎ este mes':'';
   document.getElementById('aPct').textContent=c.inc.aPct?`${c.inc.aPct}% de ${fmt(c.inc.aSalary)}${tag}`:'toca para fijar';
   document.getElementById('bPct').textContent=c.inc.bPct?`${c.inc.bPct}% de ${fmt(c.inc.bSalary)}${tag}`:'toca para fijar';
-  renderSettle(c,an,bn); renderMonthNote(); renderCats(c); renderGastos(c,an,bn); renderStats();
+  renderSettle(c,an,bn); renderMonthNote(); renderCats(c); renderGastos(c,an,bn); renderExtra(); renderStats();
 }
 function renderSettle(c,an,bn){
   const el=document.getElementById('settleCard');
@@ -727,7 +739,7 @@ function showView(v){
   document.querySelectorAll('.view').forEach(s=>s.classList.remove('active'));
   document.getElementById('v-'+v).classList.add('active');
   document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));
-  document.getElementById('fab').style.display=(v==='ajustes')?'none':'grid';
+  document.getElementById('fab').style.display=(v==='ajustes'||v==='extra'||v==='stats')?'none':'grid';
   if(v==='ajustes'){fillCfg();renderFixed();renderCatList();updateMeSeg();refreshNotifBtn();}
   if(v==='stats')renderStats();
   window.scrollTo(0,0);
@@ -789,7 +801,13 @@ function openSheet(id,isFixed){
   document.getElementById('sheetBg').classList.add('open');document.getElementById('sheet').classList.add('open');
 }
 function todayInMonth(){const n=new Date();if(monthKey(n)===curMonth)return n.toISOString().slice(0,10);const[y,m]=curMonth.split('-').map(Number);return new Date(y,m-1,1).toISOString().slice(0,10);}
-function closeSheet(){document.getElementById('sheetBg').classList.remove('open');document.getElementById('sheet').classList.remove('open');}
+function closeSheet(){
+  document.getElementById('sheetBg').classList.remove('open');document.getElementById('sheet').classList.remove('open');
+  // restaurar controles ocultados en modo "aparte"
+  document.getElementById('fijoToggle').classList.remove('hide');
+  document.querySelector('#exPayer button[data-p="bote"]').classList.remove('hide');
+  formExtra=false; editingExtra=false;
+}
 document.getElementById('fab').onclick=()=>openSheet();
 document.getElementById('exCancel').onclick=closeSheet;
 document.getElementById('sheetBg').onclick=closeSheet;
@@ -805,6 +823,21 @@ document.getElementById('exSave').onclick=()=>{
   const cat=document.getElementById('exCat').value;
   const isNew=!editingId;
   const usedBefore=potUsedPct(curMonth);
+  if(formExtra){
+    const date=document.getElementById('exDate').value||todayInMonth();
+    let createdBy=myPerson||null;
+    if(editingId&&editingExtra){
+      const prev=state.extras.find(x=>x.id===editingId);
+      if(prev){createdBy=prev.createdBy||createdBy;}
+    }
+    if(editingId&&editingExtra)deleteExtra(editingId);
+    const newId=(editingId&&editingExtra)?editingId:now();
+    state.extras.push({id:newId,concept,note,amount,date,cat,payer:formPayer==='bote'?'A':formPayer,updatedAt:now(),deleted:false,createdBy,updatedBy:myPerson||null});
+    curMonth=(date||'').slice(0,7)||curMonth;
+    announce('extra',(concept||catById(cat).name)+' · '+fmt(amount)+' (aparte)');
+    save();closeSheet();render();
+    return;
+  }
   if(formFijo){
     const day=Math.min(28,Math.max(1,+document.getElementById('exDay').value||1));
     const month=formFreq==='anual'?Math.min(12,Math.max(1,+document.getElementById('exMonth').value||1)):null;
@@ -855,10 +888,84 @@ function checkBoteJoke(before,after){
 function announce(action,label){ state.meta={lastChange:{deviceId,by:myName(),action,label,at:now()}}; }
 function deleteExpense(id){Object.values(state.months).forEach(m=>{const e=(m.expenses||[]).find(x=>x.id===id);if(e){e.deleted=true;e.updatedAt=now();}});}
 function deleteFixed(id){const f=state.fixed.find(x=>x.id===id);if(f){f.deleted=true;f.updatedAt=now();}}
+function deleteExtra(id){const e=state.extras.find(x=>x.id===id);if(e){e.deleted=true;e.updatedAt=now();}}
+
+/* ===== APARTE (fuera del bote, reparto proporcional) ===== */
+function extrasForMonth(mk){return (state.extras||[]).filter(e=>!e.deleted && (e.date||'').slice(0,7)===mk);}
+function calcExtra(mk){
+  mk=mk||curMonth;
+  const inc=incomeFor(mk);
+  const aportA=(+inc.aSalary||0)*(+inc.aPct||0)/100, aportB=(+inc.bSalary||0)*(+inc.bPct||0)/100, bote=aportA+aportB;
+  const list=extrasForMonth(mk);
+  const G=list.reduce((s,e)=>s+(+e.amount||0),0);
+  const pa=list.filter(e=>e.payer==='A').reduce((s,e)=>s+(+e.amount||0),0);
+  const pb=list.filter(e=>e.payer==='B').reduce((s,e)=>s+(+e.amount||0),0);
+  const rA=bote>0?aportA/bote:0.5, rB=bote>0?aportB/bote:0.5;
+  const saldoA=pa*rB-pb*rA;
+  return{list,G,pa,pb,rA,rB,saldoA};
+}
+function renderExtra(){
+  const c=calcExtra(); const an=state.config.a.name||'Yo', bn=state.config.b.name||'Pareja';
+  const el=document.getElementById('extraSettle');
+  if(!c.list.length){el.innerHTML='<div class="res peace">Sin gastos aparte este mes 🌱</div>';}
+  else{
+    const s=c.saldoA; let html;
+    if(Math.abs(s)<0.005)html='<div class="res peace">¡Estáis en paz! 🤝</div>';
+    else if(s>0)html=`<div class="res">A <b>${esc(an)}</b> le deben</div><div class="pill">${fmt(s)}</div><div class="res" style="font-size:15px">${esc(bn)} → ${esc(an)}</div>`;
+    else html=`<div class="res">A <b>${esc(bn)}</b> le deben</div><div class="pill" style="background:var(--coral)">${fmt(-s)}</div><div class="res" style="font-size:15px">${esc(an)} → ${esc(bn)}</div>`;
+    html+=`<div class="det">Pagado: <span class="nm">${esc(an)} ${fmt(c.pa)}</span> · <span class="nm">${esc(bn)} ${fmt(c.pb)}</span><br>Reparto ${Math.round(c.rA*100)}%/${Math.round(c.rB*100)}% (según aportación al bote)</div>`;
+    el.innerHTML=html;
+  }
+  const wrap=document.getElementById('extraListWrap');
+  if(!c.list.length){wrap.innerHTML='<div class="empty"><div class="ee">🍽️</div><p>Aún no hay gastos aparte este mes.<br>Pulsa <b>+ Añadir</b> para el primero.</p></div>';return;}
+  const days={};c.list.forEach(e=>{(days[e.date]=days[e.date]||[]).push(e);});
+  const dks=Object.keys(days).sort().reverse();
+  wrap.innerHTML=dks.map(d=>{
+    const [y,m,dd]=d.split('-').map(Number);
+    const hdr=new Date(y,m-1,dd).toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});
+    const items=days[d].map(e=>{const cat=catById(e.cat);const who=e.payer==='A'?an:bn;
+      return`<div class="gitem" data-xid="${e.id}"><div class="emo">${cat.emo}</div><div class="gmid"><div class="gc">${byBadge(e.createdBy)}${esc(e.concept||cat.name)}</div><div class="gm">Pagó ${esc(who)}</div>${e.note?`<div class="gn">${esc(e.note)}</div>`:''}</div><div class="gamt">${fmt(+e.amount||0)}</div></div>`;}).join('');
+    return`<div class="dayhdr">${hdr}</div><div class="card glist" style="padding:2px 14px">${items}</div>`;
+  }).join('');
+  wrap.querySelectorAll('.gitem[data-xid]').forEach(it=>it.onclick=()=>openExtraSheet(+it.dataset.xid));
+}
+function openExtraSheet(id){
+  editingId=id??null; editingExtra=true; editingFixed=false;
+  formExtra=true;
+  const an=state.config.a.name||'Yo', bn=state.config.b.name||'Pareja';
+  document.getElementById('segA').textContent=an; document.getElementById('segB').textContent=bn;
+  // Ocultar toggle "gasto fijo" y frecuencia en modo aparte
+  document.getElementById('fijoToggle').classList.add('hide');
+  document.getElementById('freqSeg').classList.add('hide');
+  document.getElementById('dayField').classList.add('hide');
+  document.getElementById('monthField').classList.add('hide');
+  document.getElementById('dateField').classList.remove('hide');
+  // Ocultar el botón "pagar del bote" (no aplica aquí)
+  document.querySelector('#exPayer button[data-p="bote"]').classList.add('hide');
+  if(editingId){
+    const e=state.extras.find(x=>x.id===editingId);
+    document.getElementById('sheetTitle').textContent='Editar gasto aparte';
+    document.getElementById('exConcept').value=e.concept||''; document.getElementById('exAmount').value=e.amount||'';
+    document.getElementById('exNote').value=e.note||''; document.getElementById('exDate').value=e.date||todayInMonth();
+    fillCatSelect(e.cat); document.getElementById('exCat').value=e.cat||'ocio';
+    setPayer(e.payer==='B'?'B':'A'); document.getElementById('exDelete').style.display='block';
+  }else{
+    document.getElementById('sheetTitle').textContent='Nuevo gasto aparte';
+    document.getElementById('exConcept').value=''; document.getElementById('exAmount').value='';
+    document.getElementById('exNote').value=''; document.getElementById('exDate').value=todayInMonth();
+    fillCatSelect(); document.getElementById('exCat').value='ocio';
+    setPayer(myPerson||'A'); document.getElementById('exDelete').style.display='none';
+  }
+  formFijo=false; formFreq='mensual';
+  document.getElementById('sheetBg').classList.add('open');document.getElementById('sheet').classList.add('open');
+}
+document.getElementById('addExtra').onclick=()=>openExtraSheet(null);
 document.getElementById('exDelete').onclick=()=>{
   if(!editingId)return; if(!confirm('¿Eliminar?'))return;
-  if(editingFixed)deleteFixed(editingId); else deleteExpense(editingId);
-  announce('cambio','Eliminó un '+(editingFixed?'gasto fijo':'gasto'));
+  if(editingExtra)deleteExtra(editingId);
+  else if(editingFixed)deleteFixed(editingId);
+  else deleteExpense(editingId);
+  announce('cambio','Eliminó un '+(editingExtra?'gasto aparte':editingFixed?'gasto fijo':'gasto'));
   save();closeSheet();render();
 };
 
@@ -1076,7 +1183,7 @@ const Sync={
     notify('💸',(lc.by||'Tu pareja')+' '+verb,lc.label||'');
   },
   disconnect(){this.active=false;this.code=null;if(this.unsub)this.unsub();localStorage.removeItem(CODEKEY);this.badge('off','Local');this.renderState();},
-  clean(s){return{config:s.config,fixed:s.fixed||[],months:s.months||{},meta:s.meta||null};},
+  clean(s){return{config:s.config,fixed:s.fixed||[],extras:s.extras||[],months:s.months||{},meta:s.meta||null};},
   payload(){return this.clean(state);},
   push(){if(!this.active||!this.code)return;clearTimeout(this.pushT);this.pushT=setTimeout(()=>{
     this.db.collection('parejas').doc(this.code).set(this.payload(),{merge:false}).catch(e=>console.warn('push',e));},600);},
@@ -1084,6 +1191,7 @@ const Sync={
   merge(local,remote){
     const config=((remote.config&&remote.config.updatedAt)||0)>((local.config&&local.config.updatedAt)||0)?remote.config:local.config;
     const fixed=this.mergeById(local.fixed,remote.fixed);
+    const extras=this.mergeById(local.extras,remote.extras);
     const months={};const keys=new Set([...Object.keys(local.months||{}),...Object.keys(remote.months||{})]);
     keys.forEach(k=>{
       const lm=local.months[k]||{}, rm=remote.months[k]||{};
@@ -1098,7 +1206,7 @@ const Sync={
     const lat=(local.meta&&local.meta.lastChange&&local.meta.lastChange.at)||0;
     const rat=(remote.meta&&remote.meta.lastChange&&remote.meta.lastChange.at)||0;
     const meta=rat>lat?remote.meta:local.meta;
-    return{config,fixed,months,meta:meta||null};
+    return{config,fixed,extras,months,meta:meta||null};
   },
   renderState(msg){
     const el=document.getElementById('syncState');
