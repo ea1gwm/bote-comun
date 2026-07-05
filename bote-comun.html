@@ -553,6 +553,19 @@ function migrate(s){
   if(!s.config.updatedAt)s.config.updatedAt=0; if(!Array.isArray(s.fixed))s.fixed=[]; if(!Array.isArray(s.extras))s.extras=[];
   if(!Array.isArray(s.config.customCats))s.config.customCats=[]; if(!Array.isArray(s.config.hiddenCats))s.config.hiddenCats=[];
   s.extras.forEach(e=>{if(!e.updatedAt)e.updatedAt=e.id||1;if(e.deleted===undefined)e.deleted=false;});
+  // Migración one-shot: mover gastos puntuales con payer=A/B a state.extras (no toca fijos)
+  if(!s.migrated_extras_v1){
+    Object.entries(s.months||{}).forEach(([mk,m])=>{
+      (m.expenses||[]).forEach(e=>{
+        if(e.deleted||!e.payer||e.payer==='bote')return;
+        if(!s.extras.some(x=>x.id===e.id&&!x.deleted)){
+          s.extras.push({id:e.id,concept:e.concept,note:e.note,amount:e.amount,date:e.date,cat:e.cat,payer:e.payer,createdBy:e.createdBy||null,updatedBy:e.updatedBy||null,updatedAt:e.updatedAt||Date.now(),deleted:false});
+        }
+        e.deleted=true; e.updatedAt=Date.now();
+      });
+    });
+    s.migrated_extras_v1=true;
+  }
   s.months=s.months||{};
   Object.values(s.months).forEach(m=>{ (m.expenses||[]).forEach(e=>{ if(!e.updatedAt)e.updatedAt=e.id||1; if(e.deleted===undefined)e.deleted=false; }); });
   s.fixed.forEach(f=>{ if(!f.updatedAt)f.updatedAt=f.id||1; if(f.deleted===undefined)f.deleted=false; if(!f.freq)f.freq='mensual'; if(f.freq==='anual'&&!f.month)f.month=+((f.fromMonth||'0000-01').split('-')[1])||1; });
@@ -823,18 +836,26 @@ document.getElementById('exSave').onclick=()=>{
   const cat=document.getElementById('exCat').value;
   const isNew=!editingId;
   const usedBefore=potUsedPct(curMonth);
-  if(formExtra){
+  // Payer=A/B (no bote) fuera de un gasto fijo → va automáticamente a "Aparte"
+  const isExtra=formExtra || (!formFijo && formPayer!=='bote');
+  if(isExtra){
     const date=document.getElementById('exDate').value||todayInMonth();
     let createdBy=myPerson||null;
-    if(editingId&&editingExtra){
-      const prev=state.extras.find(x=>x.id===editingId);
-      if(prev){createdBy=prev.createdBy||createdBy;}
+    if(editingId){
+      if(editingExtra){const prev=state.extras.find(x=>x.id===editingId);if(prev)createdBy=prev.createdBy||createdBy;}
+      else if(!editingFixed){for(const k in state.months){const prev=(state.months[k].expenses||[]).find(x=>x.id===editingId);if(prev){createdBy=prev.createdBy||createdBy;break;}}}
     }
+    // limpiar el original si venía de otra lista
     if(editingId&&editingExtra)deleteExtra(editingId);
+    else if(editingId&&editingFixed)deleteFixed(editingId);
+    else if(editingId)deleteExpense(editingId,false);
     const newId=(editingId&&editingExtra)?editingId:now();
-    state.extras.push({id:newId,concept,note,amount,date,cat,payer:formPayer==='bote'?'A':formPayer,updatedAt:now(),deleted:false,createdBy,updatedBy:myPerson||null});
+    const payer=formPayer==='bote'?'A':formPayer;
+    state.extras.push({id:newId,concept,note,amount,date,cat,payer,updatedAt:now(),deleted:false,createdBy,updatedBy:myPerson||null});
     curMonth=(date||'').slice(0,7)||curMonth;
     announce('extra',(concept||catById(cat).name)+' · '+fmt(amount)+' (aparte)');
+    // aviso si el usuario no venía de la vista Aparte
+    if(!formExtra&&isNew)toast('🍽️','Guardado en <b>Aparte</b> (pagado por '+(payer==='A'?(state.config.a.name||'Yo'):(state.config.b.name||'Pareja'))+')');
     save();closeSheet();render();
     return;
   }
@@ -859,7 +880,7 @@ document.getElementById('exSave').onclick=()=>{
     if(editingId&&!editingFixed)deleteExpense(editingId,false);
     if(!state.months[mk])state.months[mk]={expenses:[]};
     const newId=(editingId&&!editingFixed)?editingId:now();
-    state.months[mk].expenses.push({id:newId,concept,note,amount,date,cat,payer:formPayer,updatedAt:now(),deleted:false,createdBy,updatedBy:myPerson||null});
+    state.months[mk].expenses.push({id:newId,concept,note,amount,date,cat,payer:'bote',updatedAt:now(),deleted:false,createdBy,updatedBy:myPerson||null});
     curMonth=mk;
     announce('gasto',(concept||catById(cat).name)+' · '+fmt(amount));
   }
