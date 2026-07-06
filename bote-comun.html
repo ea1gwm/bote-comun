@@ -256,8 +256,6 @@
         <div class="pcard b"><div class="pname"><span class="dot b"></span><span id="bName">Pareja</span></div>
           <div class="pamt" id="bAmt">0 €</div><div class="ppct" id="bPct">—</div></div>
       </div>
-      <div class="section-t">Liquidación del mes</div>
-      <div class="card settle" id="settleCard"><div class="res">Configura los sueldos para empezar</div></div>
       <div class="section-t">Nota del mes <span class="add" id="editMonthNote">✎ Editar</span></div>
       <div class="card" id="monthNoteCard"></div>
       <div id="catWrap"><div class="section-t">Gastos por categoría</div><div class="card" id="catCard"></div></div>
@@ -293,8 +291,6 @@
           <div class="stat em"><div class="sl">Gastado</div><div class="sv" id="smGasto">0 €</div></div>
           <div class="stat green"><div class="sl">Ahorrado</div><div class="sv" id="smAhorro">0 €</div></div>
         </div>
-        <div class="section-t">Quién ha pagado</div>
-        <div class="card"><div class="splitbar" id="smSplit"></div><div class="splitleg" id="smSplitLeg"></div></div>
         <div class="section-t">Por categoría</div>
         <div class="card" id="smCats"></div>
       </div>
@@ -637,18 +633,7 @@ function render(){
   const tag=c.custom?' · ✎ este mes':'';
   document.getElementById('aPct').textContent=c.inc.aPct?`${c.inc.aPct}% de ${fmt(c.inc.aSalary)}${tag}`:'toca para fijar';
   document.getElementById('bPct').textContent=c.inc.bPct?`${c.inc.bPct}% de ${fmt(c.inc.bSalary)}${tag}`:'toca para fijar';
-  renderSettle(c,an,bn); renderMonthNote(); renderCats(c); renderGastos(c,an,bn); renderExtra(); renderStats();
-}
-function renderSettle(c,an,bn){
-  const el=document.getElementById('settleCard');
-  if(c.bote<=0){el.innerHTML='<div class="res">Configura los sueldos para empezar</div>';return;}
-  if(c.pa===0&&c.pb===0){el.innerHTML=`<div class="res peace">Aún no hay gastos de bolsillo este mes 🌱</div><div class="det">Reparto proporcional: <span class="nm">${an} ${Math.round(c.rA*100)}%</span> · <span class="nm">${bn} ${Math.round(c.rB*100)}%</span></div>`;return;}
-  const s=c.saldoA; let html;
-  if(Math.abs(s)<0.005)html=`<div class="res peace">¡Estáis en paz! 🤝</div>`;
-  else if(s>0)html=`<div class="res">A <b>${an}</b> le deben</div><div class="pill">${fmt(s)}</div><div class="res" style="font-size:15px">${bn} → ${an}</div>`;
-  else html=`<div class="res">A <b>${bn}</b> le deben</div><div class="pill" style="background:var(--coral)">${fmt(-s)}</div><div class="res" style="font-size:15px">${an} → ${bn}</div>`;
-  html+=`<div class="det">De su bolsillo: <span class="nm">${an} ${fmt(c.pa)}</span> · <span class="nm">${bn} ${fmt(c.pb)}</span><br>Reparto ${Math.round(c.rA*100)}%/${Math.round(c.rB*100)}%. Lo del bote común no cuenta aquí.</div>`;
-  el.innerHTML=html;
+  renderMonthNote(); renderCats(c); renderGastos(c,an,bn); renderExtra(); renderStats();
 }
 function renderCats(c){
   const wrap=document.getElementById('catWrap'),card=document.getElementById('catCard');
@@ -697,12 +682,6 @@ function renderStatMes(){
   const c=calc();
   document.getElementById('smGasto').textContent=fmt(c.G);
   document.getElementById('smAhorro').textContent=fmt(c.bote-c.G);
-  const tot=c.pa+c.pb+c.pbote||1;
-  document.getElementById('smSplit').innerHTML=
-    `<div class="sa" style="width:${c.pa/tot*100}%"></div><div class="sb" style="width:${c.pb/tot*100}%"></div><div class="sx" style="width:${c.pbote/tot*100}%"></div>`;
-  const an=c.a.name||'Yo',bn=c.b.name||'Pareja';
-  document.getElementById('smSplitLeg').innerHTML=
-    `<span><span class="dot a"></span>${an} ${fmt(c.pa)}</span><span><span class="dot b"></span>${bn} ${fmt(c.pb)}</span><span><span class="dot bote"></span>Bote ${fmt(c.pbote)}</span>`;
   document.getElementById('smCats').innerHTML=catRows(c.all);
 }
 function monthSaving(mk){const cc=calc(mk);const nowD=new Date(),curMk=monthKey(nowD);const elapsed=(mk.slice(0,4)<String(nowD.getFullYear()))||(mk<=curMk);return(cc.bote>0&&elapsed)?(cc.bote-cc.G):0;}
